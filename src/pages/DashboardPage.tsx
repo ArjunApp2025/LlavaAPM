@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Train, FilterState, KPIValues, CapacityDataPoint, OnTimeDataPoint } from '../types';
 import {
   generateInitialTrains,
@@ -30,11 +30,13 @@ export const DashboardPage: React.FC = () => {
   });
   const [capacityData, setCapacityData] = useState<CapacityDataPoint[]>([]);
   const [onTimeData, setOnTimeData] = useState<OnTimeDataPoint[]>([]);
+  const trainsRef = useRef<Train[]>([]);
 
   // Initialize trains
   useEffect(() => {
     const initialTrains = generateInitialTrains();
     setTrains(initialTrains);
+    trainsRef.current = initialTrains;
     
     // Calculate initial KPIs and chart data
     setKpis(calculateKPIs(initialTrains));
@@ -42,33 +44,55 @@ export const DashboardPage: React.FC = () => {
     setOnTimeData(generateOnTimeData(filters.timeRange, initialTrains));
   }, []);
 
-  // Real-time simulation: update trains every 2 seconds
+  // Real-time simulation: update trains every 2 seconds, but capacity data slower
   useEffect(() => {
     if (trains.length === 0) return;
 
-    const interval = setInterval(() => {
+    const trainInterval = setInterval(() => {
       setTrains((prevTrains) => {
         const updatedTrains = simulateTrainUpdates(prevTrains);
+        trainsRef.current = updatedTrains;
         
-        // Update KPIs and chart data when trains update
+        // Update KPIs when trains update
         setKpis(calculateKPIs(updatedTrains));
-        setCapacityData(generateCapacityData(filters.timeRange, updatedTrains));
-        setOnTimeData(generateOnTimeData(filters.timeRange, updatedTrains));
         
         return updatedTrains;
       });
-    }, 2000); // Update every 2 seconds
+    }, 2000); // Update trains every 2 seconds
 
-    return () => clearInterval(interval);
+    // Update capacity data separately with slower, smoother updates
+    const capacityInterval = setInterval(() => {
+      const currentTrains = trainsRef.current;
+      if (currentTrains.length === 0) return;
+      
+      // Update capacity data with trending (pass previous data for smooth transitions)
+      setCapacityData((prevCapacityData) => {
+        return generateCapacityData(filters.timeRange, currentTrains, prevCapacityData);
+      });
+    }, 8000); // Update capacity chart every 8 seconds for smoother trending
+
+    // Update on-time data
+    const onTimeInterval = setInterval(() => {
+      const currentTrains = trainsRef.current;
+      if (currentTrains.length === 0) return;
+      setOnTimeData(generateOnTimeData(filters.timeRange, currentTrains));
+    }, 5000); // Update on-time data every 5 seconds
+
+    return () => {
+      clearInterval(trainInterval);
+      clearInterval(capacityInterval);
+      clearInterval(onTimeInterval);
+    };
   }, [trains.length, filters.timeRange]);
 
   // Update chart data when time range filter changes
   useEffect(() => {
     if (trains.length > 0) {
+      // Reset capacity data when time range changes (fresh start)
       setCapacityData(generateCapacityData(filters.timeRange, trains));
       setOnTimeData(generateOnTimeData(filters.timeRange, trains));
     }
-  }, [filters.timeRange, trains]);
+  }, [filters.timeRange]);
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: 'var(--vx-bg-alt)' }}>

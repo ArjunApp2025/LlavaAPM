@@ -414,26 +414,97 @@ export function getLoadColor(loadPercentage: number): string {
   return 'bg-red-500';
 }
 
-// Generate capacity utilization data points
+// Generate capacity utilization data points with smooth trending
 // Segment Capacity Utilization % = (Total passengers moved in period / (Train capacity × number of trips)) × 100
-export function generateCapacityData(timeRange: '30min' | '1hr' | '4hr', trains: Train[]): CapacityDataPoint[] {
+export function generateCapacityData(
+  timeRange: '30min' | '1hr' | '4hr', 
+  trains: Train[], 
+  previousData?: CapacityDataPoint[]
+): CapacityDataPoint[] {
   const hours = timeRange === '30min' ? 0.5 : timeRange === '1hr' ? 1 : 4;
   const points: CapacityDataPoint[] = [];
   const now = new Date();
   
-  for (let i = hours * 2; i >= 0; i--) {
-    const time = new Date(now.getTime() - i * 30 * 60000);
-    // Simulate utilization based on train loads
-    const totalPassengers = trains.reduce((sum, t) => sum + t.passengers, 0);
-    const totalCapacity = trains.length * TRAIN_CAPACITY;
-    const baseUtilization = (totalPassengers / totalCapacity) * 100;
-    // Add some variation
-    const utilization = Math.max(0, Math.min(100, baseUtilization + (Math.random() * 20 - 10)));
+  // Calculate current utilization based on train loads
+  const totalPassengers = trains.reduce((sum, t) => sum + t.passengers, 0);
+  const totalCapacity = trains.length * TRAIN_CAPACITY;
+  const currentUtilization = (totalPassengers / totalCapacity) * 100;
+  
+  // If we have previous data, use it to create smooth trending
+  if (previousData && previousData.length > 0) {
+    const lastPoint = previousData[previousData.length - 1];
+    const lastUtilization = lastPoint.utilization;
     
-    points.push({
-      time: time.toISOString(),
-      utilization: Math.round(utilization * 10) / 10,
+    // Calculate smooth transition - move 10-15% towards target (trending behavior)
+    const targetUtilization = Math.max(0, Math.min(100, currentUtilization));
+    const trendFactor = 0.12; // 12% movement per update for smooth trending
+    const newUtilization = lastUtilization + (targetUtilization - lastUtilization) * trendFactor;
+    
+    // Add very small random variation (±1%) for natural fluctuation
+    const smallVariation = (Math.random() * 2 - 1); // -1 to +1
+    const smoothedUtilization = Math.max(0, Math.min(100, newUtilization + smallVariation));
+    
+    // Shift previous data points forward and add new point
+    const dataPointInterval = 30 * 60000; // 30 minutes in milliseconds
+    const maxPoints = Math.floor(hours * 2) + 1;
+    
+    // Keep previous points, shift times forward
+    previousData.forEach((point, index) => {
+      if (index < maxPoints - 1) {
+        const pointTime = new Date(point.time);
+        const timeDiff = now.getTime() - pointTime.getTime();
+        
+        // Only keep points within the time range
+        if (timeDiff <= hours * 60 * 60 * 1000) {
+          points.push({
+            time: point.time,
+            utilization: point.utilization,
+          });
+        }
+      }
     });
+    
+    // Add new current point
+    points.push({
+      time: now.toISOString(),
+      utilization: Math.round(smoothedUtilization * 10) / 10,
+    });
+    
+    // Ensure we have enough points for the time range
+    while (points.length < maxPoints) {
+      const missingIndex = points.length;
+      const time = new Date(now.getTime() - (maxPoints - missingIndex - 1) * dataPointInterval);
+      const baseUtil = currentUtilization + (Math.random() * 4 - 2); // Small variation
+      points.unshift({
+        time: time.toISOString(),
+        utilization: Math.round(Math.max(0, Math.min(100, baseUtil)) * 10) / 10,
+      });
+    }
+  } else {
+    // Initial generation - create historical trend
+    let trendDirection = Math.random() > 0.5 ? 1 : -1; // Start trending up or down
+    let baseValue = currentUtilization;
+    
+    for (let i = hours * 2; i >= 0; i--) {
+      const time = new Date(now.getTime() - i * 30 * 60000);
+      
+      // Create smooth trend - gradually change direction occasionally
+      if (Math.random() < 0.15) {
+        trendDirection *= -1; // Occasionally reverse trend
+      }
+      
+      // Small incremental changes for trending
+      const trendChange = trendDirection * (Math.random() * 0.8 + 0.2); // 0.2-1.0 per step
+      baseValue = Math.max(20, Math.min(90, baseValue + trendChange)); // Keep within reasonable bounds
+      
+      // Add small random variation
+      const utilization = baseValue + (Math.random() * 2 - 1); // ±1% variation
+      
+      points.push({
+        time: time.toISOString(),
+        utilization: Math.round(Math.max(0, Math.min(100, utilization)) * 10) / 10,
+      });
+    }
   }
   
   return points;
