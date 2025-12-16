@@ -110,19 +110,19 @@ const CONFIG = {
   // Heatmap
   HEATMAP: {
     gridSize: 20,
-    intensityMultiplier: 8,
-    minIntensity: 5,
+    intensityMultiplier: 6, // Reduced to show more moderate traffic
+    minIntensity: 2, // Lower threshold to show low traffic areas
     thresholds: {
-      low: 40,
-      moderate: 70,
+      low: 25, // Lower threshold to show more low traffic
+      moderate: 80, // Higher threshold - red hot spots only for very heavy congestion
     },
-    // Terminal 2 specific - higher thresholds for heavy clustering only
+    // Terminal 2 specific - adjusted to show mix of traffic levels
     terminal2: {
-      intensityMultiplier: 5, // Lower multiplier - less sensitive
-      minIntensity: 40, // Much higher threshold - only show heavy clusters
+      intensityMultiplier: 4, // Reduced multiplier for better distribution
+      minIntensity: 3, // Lower threshold to show low traffic areas
       thresholds: {
-        low: 60, // Higher threshold for low traffic
-        moderate: 85, // Higher threshold for moderate traffic
+        low: 20, // Lower threshold for low traffic
+        moderate: 75, // Higher threshold - red hot spots only for very heavy congestion
       },
     },
   },
@@ -1224,20 +1224,20 @@ export const TerminalHeatmapModal: React.FC<TerminalHeatmapModalProps> = ({ stat
       }
       // Coffee shop clusters - yellow/orange (not red), higher thresholds
       if (zoneId && zoneId.startsWith('near-shop')) {
-        if (intensity < low) return '#fef3c7'; // light yellow
-        if (intensity < moderate) return '#fde68a'; // yellow
+        if (intensity < low) return '#fde047'; // brighter light yellow
+        if (intensity < moderate) return '#facc15'; // brighter yellow
         return '#fb923c'; // orange (not red)
       }
       // General areas - higher thresholds to show only heavy clustering
-      if (intensity < low) return '#fef3c7'; // light yellow - Low Traffic
-      if (intensity < moderate) return '#fde68a'; // yellow - Moderate Traffic
+      if (intensity < low) return '#fde047'; // brighter light yellow - Low Traffic
+      if (intensity < moderate) return '#facc15'; // brighter yellow - Moderate Traffic
       return '#ef4444'; // red - Hot Spots (only very heavy clusters)
     }
     
     // Standard terminals: 3 levels with normal thresholds
     const { low, moderate } = CONFIG.HEATMAP.thresholds;
-    if (intensity < low) return '#fef3c7'; // light yellow - Low Traffic
-    if (intensity < moderate) return '#fde68a'; // yellow - Moderate Traffic
+    if (intensity < low) return '#fde047'; // brighter light yellow - Low Traffic
+    if (intensity < moderate) return '#facc15'; // brighter yellow - Moderate Traffic
     return '#ef4444'; // red - Hot Spots
   };
 
@@ -1247,7 +1247,7 @@ export const TerminalHeatmapModal: React.FC<TerminalHeatmapModalProps> = ({ stat
       onClick={onClose}
     >
       <div 
-        className="bg-white rounded-lg p-6 max-w-4xl w-full mx-4 shadow-xl max-h-[90vh] overflow-auto"
+        className="bg-white rounded-lg p-6 max-w-7xl w-full mx-4 shadow-xl max-h-[95vh] overflow-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
@@ -1266,7 +1266,7 @@ export const TerminalHeatmapModal: React.FC<TerminalHeatmapModalProps> = ({ stat
           </button>
         </div>
 
-        <div className="relative border border-gray-300 rounded-lg bg-blue-50 overflow-hidden" style={{ height: '600px' }}>
+        <div className="relative border border-gray-300 rounded-lg bg-blue-50 overflow-hidden" style={{ height: '700px' }}>
           <svg 
             width="100%" 
             height="100%" 
@@ -1331,10 +1331,10 @@ export const TerminalHeatmapModal: React.FC<TerminalHeatmapModalProps> = ({ stat
               const opacity = isTerminal2 
                 ? Math.min(0.5, cell.intensity / 120) // More subtle for Terminal 2
                 : Math.min(0.6, cell.intensity / 150);
-              // Circle size reflects local density - larger for higher intensity
+              // Circle size reflects local density - reduced to 60% of original size
               const radius = isTerminal2 
-                ? 20 + (cell.intensity / 100) * 15 // 20-35px for Terminal 2
-                : 25;
+                ? 12 + (cell.intensity / 100) * 9 // 12-21px for Terminal 2 (60% of 20-35px)
+                : 15; // 15px for standard terminals (60% of 25px)
               
               return (
                 <circle
